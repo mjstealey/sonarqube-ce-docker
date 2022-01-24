@@ -1,0 +1,9 @@
+# environment file
+.env
+
+# logging output
+logs
+
+# macOS and IDE
+.DS_Store
+.idea
