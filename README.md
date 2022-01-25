@@ -18,7 +18,7 @@ Notes on [SonarQube Community Edition](https://www.sonarqube.org/downloads/) as 
 - [Example: Manually add a project](#example)
     - [Add a project](#addproject)
     - [Execute the scanner](#scanner)
-- [GitHub integration](#github) (TODO)
+- [GitHub integration](#github)
 - [Jenkins integration](#jenkins) (TODO)
 - [Teardown](#teardown)
 - [References](#references)
@@ -39,7 +39,7 @@ Details for the installation and usage of the Docker based SonarQube image.
 
     As root
     
-    ```
+    ```console
     sysctl -w vm.max_map_count=524288
     sysctl -w fs.file-max=131072
     ulimit -n 131072
@@ -50,7 +50,7 @@ Details for the installation and usage of the Docker based SonarQube image.
 
 Copy the `env.template` file as `.env` and populate according to your environment
 
-```env
+```ini
 # docker-compose environment file
 #
 # When you set the same environment variable in multiple files,
@@ -130,10 +130,9 @@ server {
 
 Once configured the containers can be brought up using Docker Compose
 
-```
+```console
 source .env
 docker-compose pull
-docker-compose build
 docker-compose up -d
 ```
 
@@ -151,12 +150,12 @@ The SonarQube application can be reached at the designated host and port (e.g. [
 
 - **NOTE**: you will likely have to acknowledge the security risk if using the included self-signed certificate.
 
-![](./imgs/SQ-initial-page.png)
-
 Use the default user/pass to log in initially as the `admin` user. You will be prompted to change the password after first login.
 
 - user: **admin**
 - pass: **admin**
+
+![](./imgs/SQ-initial-page.png)
 
 Once a new password is set you'll see the Administrator's homepage
 
@@ -190,7 +189,7 @@ At this point SonarQube will provide some information on how to execute the scan
 
 With the [sonarsource/sonar-scanner-cli](https://hub.docker.com/r/sonarsource/sonar-scanner-cli) Docker image use the information provided in the UI to run the scan
 
-```
+```ini
 sonar-scanner \
   -Dsonar.projectKey=project-registry \
   -Dsonar.sources=. \
@@ -202,9 +201,12 @@ Create a file named `sonar-project.properties` in your repository with the appro
 
 Example: `sonar-project.properties` file
 
-```
+```ini
+# --- required properties ---
+
 # must be unique in a given SonarQube instance
 sonar.projectKey=my:project
+
 
 # --- optional properties ---
 
@@ -225,30 +227,30 @@ Prepare the appropriate `docker run` call for the scanner.
 ```
 docker run \
     --rm \
-    -e SONAR_HOST_URL="http://${SONARQUBE_URL}" \
-    -e SONAR_LOGIN="${MY_AUTHENTICATION_TOKEN}" \
-    -v "${SOURCE_REPO}:/usr/src" \
+    -e SONAR_HOST_URL="http://${SONAR_HOST_URL}" \
+    -e SONAR_LOGIN="${SONAR_LOGIN_TOKEN}" \
+    -v "${SONAR_SOURCE_REPO}:/usr/src" \
     sonarsource/sonar-scanner-cli
 ```
 
 - **NOTE**: If executing on the same server that is running the docker based SonarQube:
-    - Use the docker-compose network (e.g. `--network="${MY_COMPOSE_NETWORK}"`)
-    - `SONAR_HOST_URL`: connect to the `sonarqube` container by it's docker-compose name (e.g. `sonarqube:9000`)
+    - Use the docker-compose network (e.g. `--network="${SONAR_COMPOSE_NETWORK}"`)
+    - `SONAR_HOST_URL `: connect to the `sonarqube` container by it's docker-compose name (e.g. `http://sonarqube:9000`)
 
 Example using `sonar-scanner-cli` to scan the `project-registry` code
 
 ```console
-export SONARQUBE_URL='sonarqube:9000'
-export SOURCE_REPO=$(pwd)'/project-registry'
-export MY_AUTHENTICATION_TOKEN='8aaf4c54b6d69f85bb89c08338c30f0b9a1ac251'
-export MY_COMPOSE_NETWORK='ce-sonar'
+export SONAR_HOST_URL='http://sonarqube:9000'
+export SONAR_SOURCE_REPO=$(pwd)'/project-registry'
+export SONAR_LOGIN_TOKEN ='8aaf4c54b6d69f85bb89c08338c30f0b9a1ac251'
+export SONAR_COMPOSE_NETWORK='ce-sonar'
 
 docker run \
     --rm \
-    -e SONAR_HOST_URL="http://${SONARQUBE_URL}" \
-    -e SONAR_LOGIN="${MY_AUTHENTICATION_TOKEN}" \
-    -v "${SOURCE_REPO}:/usr/src" \
-    --network="${MY_COMPOSE_NETWORK}" \
+    -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
+    -e SONAR_LOGIN="${SONAR_LOGIN_TOKEN}" \
+    -v "${SONAR_SOURCE_REPO}:/usr/src" \
+    --network="${SONAR_COMPOSE_NETWORK}" \
     sonarsource/sonar-scanner-cli
 ```
 
@@ -292,7 +294,97 @@ And the project page will update with the results
 
 ## <a name="github"></a>GitHub integration
 
-TODO
+### Step 1: Creating your GitHub App
+
+**For security reasons, make sure you're using HTTPS protocol for your URLs in your app.**
+
+See GitHub's documentation on [creating a GitHub App](https://docs.github.com/apps/building-github-apps/creating-a-github-app/) for general information on creating your app.
+
+Specify the following settings in your app:
+
+- **GitHub App Name** – Your app's name.
+- **Homepage URL** – You can use any URL, such as https://www.sonarqube.org/.
+- **User authorization callback URL** – Your instance's base URL. For example, https://yourinstance.sonarqube.com.
+- **Webhook UR**L – Your instance's base URL. For example, https://yourinstance.sonarqube.com.
+- Grant access for the following **Repository permissions**:
+
+    **Permission** | **Access**
+    :----------|:-----------
+    Checks	| Read & write
+    **GitHub Enterprise**: Repository metadata | Read-only
+    **GitHub.com**: Metadata (this setting is automatically set by GitHub) | Read-only
+    Pull Requests | Read & write
+    Commit statuses | Read-only
+
+- And grant access for the following **Organization permissions**:
+
+    **Permission** | **Access**
+    :----------|:-----------
+    Members | Read-only
+    Projects | Read-only
+    
+- If setting up **GitHub Authentication**, in addition to the aforementioned Repository permissions, grant access for the following **User permissions**:
+
+    **Permission** | **Access**
+    :----------|:-----------
+    Email addresses	| Read-only
+
+- Under "Where can this GitHub App be installed?," select **Any account**.
+
+### Step 2: Installing your GitHub App in your organization
+
+Next, you need to install your GitHub App in your organizations. See GitHub's documentation on [installing GitHub Apps](https://docs.github.com/en/free-pro-team@latest/developers/apps/installing-github-apps) for more information.
+
+### Step 3: Updating your SonarQube global settings with your GitHub App information
+
+After you've created and installed your GitHub App, update your global SonarQube settings to finish integration and allow for the import of GitHub projects.
+
+Navigate to **Administration > Configuration > General Settings > ALM Integrations > GitHub** and specify the following settings:
+
+- **Configuration Name** (Enterprise and Data Center Edition only) – The name used to identify your GitHub configuration at the project level. Use something succinct and easily recognizable.
+- **GitHub URL** – For example, `https://github.company.com/api/v3` for GitHub Enterprise or `https://api.github.com/` for GitHub.com.
+- **GitHub App ID** – The App ID is found on your GitHub App's page on GitHub at **Settings > Developer Settings > GitHub Apps**.
+- **Client ID** – The Client ID is found on your GitHub App's page.
+- **Client secret** – The Client secret is found on your GitHub App's page.
+- **Private Key** – Your GitHub App's private key. You can generate a `.pem` file from your GitHub App's page under **Private keys**. Copy and paste the contents of the file here.
+
+### Step 4: Setting up GitHub authentication
+
+**If you're using Community Edition or you want to use a dedicated app for GitHub authentication, see the Creating a dedicated app for authentication section below.**
+
+To allow users to log in with GitHub credentials, use the GitHub App that you created above (see the **Importing your GitHub repositories using a GitHub App** section for more information) and update your global SonarQube settings.
+
+To update your global SonarQube settings:
+
+Navigate to **Administration > Configuration > General Settings > ALM Integrations > GitHub > GitHub Authentication** and update the following:
+
+1. **Enabled** – set the switch to true.
+2. **Client ID** – the Client ID is found below the GitHub App ID on your GitHub App's page.
+3. **Client Secret** – the Client secret is found below the Client ID on your GitHub App's page.
+Now, from the login page, your users can connect their GitHub accounts with the new "Log in with GitHub" button.
+
+### Creating a dedicated app for authentication
+
+If you want to use a dedicated app for GitHub authentication, you can create a GitHub OAuth app. You'll find general instructions for creating a GitHub OAuth App [here](https://docs.github.com/en/free-pro-team@latest/developers/apps/creating-an-oauth-app). Specify the following settings in your OAuth App:
+
+- Homepage URL – the public URL of your SonarQube server. For example, `https://sonarqube.mycompany.com`. For security reasons, HTTP is not supported, and you must use HTTPS. The public URL is configured in SonarQube at **Administration > General > Server base URL**.
+- Authorization callback URL – your instance's base URL. For example, https://yourinstance.sonarqube.com.
+After creating your app, update your global SonarQube settings:
+
+Navigate to **Administration > Configuration > General Settings > ALM Integrations > GitHub > GitHub Authentication** and update the following:
+
+- **Enabled** – set the switch to true.
+- **Client ID** – the Client ID is found below the GitHub App ID on your GitHub App's page.
+- **Client Secret** – the Client secret is found below the Client ID on your GitHub App's page.
+Now, from the login page, your users can connect their GitHub accounts with the new "Log in with GitHub" button.
+
+When completed the configuration can be checked from the **Administration > Configuration > General Settings > ALM Integrations** panel
+
+![](./imgs/SQ-github-config.png)
+
+And the "Log in with GitHub" button will now be available (in addition to standard user/pass authentication)
+
+![](./imgs/SQ-github-auth.png) 
 
 Reference: [https://docs.sonarqube.org/8.9/analysis/github-integration/](https://docs.sonarqube.org/8.9/analysis/github-integration/)
 
@@ -361,7 +453,7 @@ Follow these steps for your first installation:
 
     Create the volumes with the following commands:
     
-    ```
+    ```console
     docker volume create --name sonarqube_data
     docker volume create --name sonarqube_logs
     docker volume create --name sonarqube_extensions
@@ -370,13 +462,13 @@ Follow these steps for your first installation:
 2. Drivers for supported databases (except Oracle) are already provided.
     - Create the database volumes (e.g. PostgreSQL):
 
-    ```
+    ```console
     docker volume create --name postgresql_data
     docker volume create --name postgresql
     ```
 3. Run the image with your database properties defined using the `-e` environment variable flag:
 
-    ```
+    ```console
     docker run -d --name sonarqube \
         -p 9000:9000 \
         -e SONAR_JDBC_URL=... \
