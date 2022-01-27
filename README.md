@@ -19,7 +19,7 @@ Notes on [SonarQube Community Edition](https://www.sonarqube.org/downloads/) as 
     - [Add a project](#addproject)
     - [Execute the scanner](#scanner)
 - [GitHub integration](#github)
-- [Jenkins integration](#jenkins) (TODO)
+- [Jenkins integration](#jenkins)
 - [Teardown](#teardown)
 - [References](#references)
 - [Notes](#notes)
@@ -390,7 +390,51 @@ Reference: [https://docs.sonarqube.org/8.9/analysis/github-integration/](https:/
 
 ## <a name="jenkins"></a>Jenkins integration
 
-TODO
+### SonarScanner for Jenkins
+
+This plugin lets you centralize the configuration of SonarQube server connection details in Jenkins global configuration.
+
+Then you can trigger SonarQube analysis from Jenkins using standard Jenkins Build Steps or [Jenkins Pipeline DSL](https://jenkins.io/solutions/pipeline/) to trigger analysis with:
+
+- SonarScanner
+- SonarScanner for Maven
+- SonarScanner for Gradle
+- SonarScanner for .NET
+
+Once the job is complete, the plugin will detect that a SonarQube analysis was made during the build and display a badge and a widget on the job page with a link to the SonarQube dashboard as well as quality gate status.
+
+### Installation
+
+1. Install the [SonarQube Scanner for Jenkins](https://plugins.jenkins.io/sonar) via the Jenkins Update Center.
+2. Configure your SonarQube server(s):
+    - Log into Jenkins as an administrator and go to **Manage Jenkins > Configure System**.
+    - Scroll down to the SonarQube configuration section, click **Add SonarQube**, and add the values you're prompted for.
+    - The server [authentication token](https://docs.sonarqube.org/8.9/user-guide/user-token/) should be created as a 'Secret Text' credential.
+
+![](./imgs/SQ-sonar-jenkins-token.png)
+![](./imgs/SQ-jenkins-token.png)
+![](./imgs/SQ-jenkins-add-sonar.png)
+
+### Analyzing other project types
+
+**Global Configuration**
+
+This step is mandatory if you want to trigger any of your SonarQube analyses with the SonarScanner. You can define as many scanner instances as you wish. Then for each Jenkins job, you will be able to choose which launcher to use to run the SonarQube analysis.
+
+1. Log into Jenkins as an administrator and go to **Manage Jenkins > Global Tool Configuration**
+2. Scroll down to the SonarScanner configuration section and click on Add SonarScanner. It is based on the typical Jenkins tool auto-installation. You can either choose to point to an already installed version of SonarScanner (uncheck 'Install automatically') or tell Jenkins to grab the installer from a remote location (check 'Install automatically')
+
+If you don't see a drop-down list with all available SonarScanner versions but instead see an empty text field then this is because Jenkins still hasn't downloaded the required update center file (default period is 1 day). You may force this refresh by clicking the 'Check Now' button in **Manage Plugins > Advanced** tab.
+
+![](./imgs/SQ-jenkins-add-scanner.png)
+
+**Job Configuration**
+
+1. **Configure** the project, and go to the **Build** section.
+2. Add the SonarScanner build step to your build.
+3. Configure the SonarQube analysis properties. You can either point to an existing `sonar-project.properties` file or set the analysis properties directly in the **Analysis properties** field
+    
+![](./imgs/SQ-jenkins-job-scanner.png)
 
 Reference: [https://docs.sonarqube.org/8.9/analysis/scan/sonarscanner-for-jenkins/](https://docs.sonarqube.org/8.9/analysis/scan/sonarscanner-for-jenkins/)
 
@@ -516,6 +560,29 @@ volumes:
   postgresql:
   postgresql_data:
 ```
+
+### Generating and Using Tokens
+
+Users can generate tokens that can be used to run analyses or invoke web services without access to the user's actual credentials.
+
+**Generating a token**
+
+You can generate new tokens at **User > My Account > Security**.
+
+The form at the bottom of the page allows you to generate new tokens. Once you click the Generate button, you will see the token value. Copy it immediately; once you dismiss the notification you will not be able to retrieve it.
+
+**Revoking a token**
+
+You can revoke an existing token at **User > My Account > Security** by clicking the **Revoke** button next to the token.
+
+**Using a token**
+
+User tokens must replace your normal login process in the following scenarios:
+
+- when running analyses on your code: replace your login with the token in the sonar.login property.
+- when invoking web services: just pass the token instead of your login while doing the basic authentication.
+
+In both cases, you don't need to provide a password (so when running analyses on your code, the property `sonar.password` is optional). Using a token is the preferred method over using a login and password.
 
 
 
